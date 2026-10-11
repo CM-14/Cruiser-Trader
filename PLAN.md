@@ -1,9 +1,13 @@
 # Cruiser Trader roadmap
 
-1. **Product surface (done)**: Rebuilt the prototype in React/TanStack Start with a new design system, AI-generated listing photos, and every screen working: home, browse (vehicles/parts/auctions/all), listing detail, sell, wanted, garage, messages, series guide, info pages. Data comes from stubs in `src/data/fixtures.ts`, and app state lives in `src/lib/store.tsx`.
-2. **Data model**: Move listings, wanted posts, threads and bids into Netlify Database (Drizzle, `db/schema.ts`) and load them through server functions.
-3. **Accounts and verification**: Netlify Identity for sign-in, plus a verification flag and an ID upload stored in Netlify Blobs.
-4. **Selling**: Persist new listings and upload photos to Blobs.
-5. **Auctions**: Validate bids on the server, apply soft close on the server, and keep countdowns live.
-6. **Messaging**: Persist threads and notify the other party.
-7. **Payments**: Stripe checkout for Buy now and accepted offers.
+Backend: **Supabase** (database, accounts, photo storage, realtime chat). Hosting: Netlify. Do NOT use Netlify Database, Drizzle, Netlify Identity or Netlify Blobs.
+The Supabase schema already exists (profiles, listings, listing_photos, listing_fitment, garage_vehicles, wanted_posts, conversations, messages, verification_requests and more, with row level security). Do not alter tables or policies from app code. Never put the Supabase secret / service_role key in browser code.
+
+1. **Product surface (done)**: React / TanStack Start prototype, every screen working on stub data in `src/data/fixtures.ts`.
+2. **Accounts (done, this milestone)**: Supabase email + password sign-up and sign-in, profile page at `/account`, trust level panel. Public settings: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`.
+3. **Listings and photos**: read/write `listings`, `listing_photos`, `listing_fitment`; upload to the `listing-photos` bucket.
+4. **Garage, browse and search**: `garage_vehicles`, fitment-aware filters.
+5. **Chat and Wanted**: `start_conversation`, `respond_to_offer`, `mark_conversation_read`, realtime on `messages`; `wanted_posts`.
+6. **ID verification and vehicle verification**: Stripe Identity or Persona via a server function that sets `id_verified`; verification submission screens; admin review queue.
+7. **Auctions**: server-side bidding and soft close.
+8. **Payments**: third-party checkout; escrow for vehicles.

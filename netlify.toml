@@ -1,6 +1,8 @@
 [build]
   command = "vite build"
   publish = "dist/client"
+[build.environment]
+  npm_config_frozen_lockfile = "false"
 [dev]
   command = "npm run dev"
   targetPort = 3000

@@ -1,6 +1,6 @@
 import { Link, useRouterState } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
-import { BadgeCheck, Menu, MessageSquare, Warehouse, X } from 'lucide-react'
+import { BadgeCheck, Menu, MessageSquare, User, Warehouse, X } from 'lucide-react'
 import { PART_CATEGORIES, SERIES } from '@/data/fixtures'
 import { allIn, cx, img, money, seriesYears } from '@/lib/format'
 import { useStore, type LiveListing } from '@/lib/store'
@@ -17,7 +17,7 @@ const NAV: { key: NavKey; label: string; to: `/${NavKey}` }[] = [
 
 export function SiteHeader() {
   const path = useRouterState({ select: (s) => s.location.pathname })
-  const { verified, setVerifyOpen, listings } = useStore()
+  const { user, profile, signOut, setVerifyOpen, listings } = useStore()
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [mega, setMega] = useState<NavKey | null>(null)
@@ -73,10 +73,14 @@ export function SiteHeader() {
           <Link to="/messages" search={{}} className="hidden items-center gap-2 rounded-full px-3 py-2 text-sm font-medium opacity-85 hover:opacity-100 md:flex">
             <MessageSquare className="size-4" /> Messages
           </Link>
-          {verified ? (
-            <span className="hidden items-center gap-1.5 rounded-full bg-forest px-3.5 py-2 text-[13px] font-semibold text-cream sm:flex">
-              <BadgeCheck className="size-4" /> Verified
-            </span>
+          {user ? (
+            <>
+              <Link to="/account" className="hidden items-center gap-2 rounded-full px-3 py-2 text-sm font-medium opacity-85 hover:opacity-100 sm:flex">
+                <User className="size-4" /> {profile?.display_name || 'Account'}
+                {profile?.id_verified && <BadgeCheck className="size-4 text-sand" aria-label="ID verified" />}
+              </Link>
+              <button className="btn btn-primary btn-sm" onClick={() => void signOut()}>Sign out</button>
+            </>
           ) : (
             <button className="btn btn-primary btn-sm" onClick={() => setVerifyOpen(true)}>Sign in</button>
           )}
@@ -138,7 +142,7 @@ export function SiteHeader() {
       {/* Mobile drawer */}
       {mobileOpen && (
         <div className="max-h-[calc(100dvh-72px)] overflow-y-auto border-t border-line bg-paper px-5 pb-8 text-ink lg:hidden">
-          {[...NAV.map((n) => [n.label, n.to] as const), ['My Garage', '/garage'] as const, ['Messages', '/messages'] as const, ['Series guide', '/series-guide'] as const].map(([label, to]) => (
+          {[...NAV.map((n) => [n.label, n.to] as const), ['My Garage', '/garage'] as const, ['Messages', '/messages'] as const, ['Account', '/account'] as const, ['Series guide', '/series-guide'] as const].map(([label, to]) => (
             <Link key={to} to={to} className="display block border-b border-line py-4 text-xl [font-stretch:112%]">{label}</Link>
           ))}
         </div>
