@@ -1,11 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { User } from '@supabase/supabase-js'
 import {
   LISTINGS, SELLERS, SOFT_CLOSE_MS, THREADS, WANTED,
   type Listing, type Thread, type WantedPost,
 } from '@/data/fixtures'
 import type { Rig } from './format'
-import { getSupabase } from './supabase'
+import { auth, configured, fetchProfile, patchProfile, type AuthUser } from './supabase'
 
 /**
  * Client-side marketplace state. Everything lives in memory (the saved rig and
@@ -50,7 +49,7 @@ interface Store {
   wanted: WantedPost[]
   threads: Thread[]
   rig: Rig | null
-  user: User | null
+  user: AuthUser | null
   profile: Profile | null
   /** False until the saved session (if any) has been checked. */
   authReady: boolean
@@ -86,7 +85,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [wanted, setWanted] = useState(WANTED)
   const [threads, setThreads] = useState<Thread[]>(() => THREADS.map((t) => ({ ...t, messages: [...t.messages] })))
   const [rig, setRig] = useState<Rig | null>(null)
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState<AuthUser | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [authReady, setAuthReady] = useState(false)
   const [verifyOpen, setVerifyOpen] = useState(false)
@@ -113,69 +112,60 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     } catch {}
   }, [])
 
-  // Restore the saved Supabase session, and follow sign-in / sign-out / email-confirmation events.
+  // Restore the saved session (and finish sign-in if the page was opened from a confirmation email link).
   useEffect(() => {
-    const sb = getSupabase()
-    if (!sb) {
+    if (!configured()) {
       setAuthReady(true)
       return
     }
-    sb.auth.getSession().then(({ data }) => {
-      setUser(data.session?.user ?? null)
+    let cancelled = false
+    auth.restore().then((s) => {
+      if (cancelled) return
+      setUser(s?.user ?? null)
       setAuthReady(true)
     })
-    const { data } = sb.auth.onAuthStateChange((_event, session) => setUser(session?.user ?? null))
-    return () => data.subscription.unsubscribe()
+    return () => { cancelled = true }
   }, [])
 
   // Load the member's profile row whenever the signed-in user changes.
   const userId = user?.id
   useEffect(() => {
-    const sb = getSupabase()
-    if (!sb || !userId) {
+    if (!userId) {
       setProfile(null)
       return
     }
     let cancelled = false
-    sb.from('profiles').select('*').eq('id', userId).maybeSingle().then(({ data }) => {
-      if (!cancelled) setProfile((data as Profile | null) ?? null)
-    })
+    fetchProfile<Profile>(userId).then((p) => { if (!cancelled) setProfile(p) })
     return () => { cancelled = true }
   }, [userId])
 
   const signUp = useCallback(async (email: string, password: string, displayName: string): Promise<AuthResult> => {
-    const sb = getSupabase()
-    if (!sb) return { error: 'Sign-in is not set up yet. The two Supabase settings are missing.' }
-    const { data, error } = await sb.auth.signUp({
-      email,
-      password,
-      options: {
-        data: displayName ? { display_name: displayName } : undefined,
-        emailRedirectTo: `${window.location.origin}/account`,
-      },
-    })
-    if (error) return { error: error.message }
-    return { needsConfirm: !data.session }
+    if (!configured()) return { error: 'Sign-in is not set up yet. The two Supabase settings are missing.' }
+    const r = await auth.signUp(email, password, displayName, `${window.location.origin}/account`)
+    if (r.error) return { error: r.error }
+    if (r.session) setUser(r.session.user)
+    return { needsConfirm: !r.session }
   }, [])
 
   const signIn = useCallback(async (email: string, password: string): Promise<AuthResult> => {
-    const sb = getSupabase()
-    if (!sb) return { error: 'Sign-in is not set up yet. The two Supabase settings are missing.' }
-    const { error } = await sb.auth.signInWithPassword({ email, password })
-    return error ? { error: error.message } : {}
+    if (!configured()) return { error: 'Sign-in is not set up yet. The two Supabase settings are missing.' }
+    const r = await auth.signIn(email, password)
+    if (r.error || !r.session) return { error: r.error ?? 'Could not sign in.' }
+    setUser(r.session.user)
+    return {}
   }, [])
 
   const signOut = useCallback(async () => {
-    await getSupabase()?.auth.signOut()
+    await auth.signOut()
+    setUser(null)
     setProfile(null)
   }, [])
 
   const updateProfile = useCallback(async (patch: ProfileEdit): Promise<{ error?: string }> => {
-    const sb = getSupabase()
-    if (!sb || !userId) return { error: 'Sign in first.' }
-    const { data, error } = await sb.from('profiles').update(patch).eq('id', userId).select().single()
-    if (error) return { error: error.code === '23505' ? 'That username is already taken.' : error.message }
-    setProfile(data as Profile)
+    if (!userId) return { error: 'Sign in first.' }
+    const r = await patchProfile<Profile>(userId, patch)
+    if (r.error || !r.profile) return { error: r.error ?? 'Could not save your profile.' }
+    setProfile(r.profile)
     return {}
   }, [userId])
 
