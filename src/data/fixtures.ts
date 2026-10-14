@@ -72,6 +72,12 @@ export interface Listing {
   endsIn?: number
   bids?: Bid[]
   category?: string
+  /** Real listings from the database: every photo URL, in order. */
+  images?: string[]
+  /** True for listings stored in Supabase (false for the built-in samples). */
+  real?: boolean
+  /** draft, pending_review, active, sold, ended or removed. Only set on real listings. */
+  status?: string
 }
 
 const HOUR = 3_600_000

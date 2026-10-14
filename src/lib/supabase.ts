@@ -41,7 +41,7 @@ function save(s: Session | null) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Json = any
+export type Json = any
 
 async function call(path: string, init: RequestInit & { token?: string } = {}) {
   const { token, headers, ...rest } = init
@@ -62,6 +62,7 @@ async function call(path: string, init: RequestInit & { token?: string } = {}) {
 
 const errMsg = (b: Json, fallback: string): string =>
   (b && (b.msg || b.error_description || b.message || b.error)) || fallback
+export const messageOf = errMsg
 
 function toSession(b: Json): Session {
   return {
@@ -169,4 +170,41 @@ export async function patchProfile<T>(id: string, patch: Record<string, unknown>
   if (!r.ok) return { error: r.body?.code === '23505' ? 'That username is already taken.' : errMsg(r.body, 'Could not save your profile.') }
   const row = Array.isArray(r.body) ? r.body[0] : null
   return row ? { profile: row as T } : { error: 'Could not save your profile.' }
+}
+
+/** Public web address of a photo in the `listing-photos` bucket. */
+export const publicPhotoUrl = (path: string) => `${URL_}/storage/v1/object/public/listing-photos/${path}`
+
+/** Read or write a table through the database API. Pass `auth: true` to act as the signed-in member. */
+export async function rest(
+  path: string,
+  o: { method?: string; body?: unknown; prefer?: string; auth?: boolean } = {},
+): Promise<{ ok: boolean; body: Json }> {
+  let token: string | undefined
+  if (o.auth) {
+    const s = await freshSession()
+    if (!s) return { ok: false, body: { message: 'Please sign in again.' } }
+    token = s.access_token
+  }
+  return call(`/rest/v1${path}`, {
+    method: o.method,
+    token,
+    headers: o.prefer ? { Prefer: o.prefer } : undefined,
+    body: o.body === undefined ? undefined : JSON.stringify(o.body),
+  })
+}
+
+/** Upload one image to `listing-photos`. The first folder in the path must be the member's own user id. */
+export async function uploadPhoto(path: string, file: Blob): Promise<{ error?: string }> {
+  const s = await freshSession()
+  if (!s) return { error: 'Please sign in again.' }
+  const res = await fetch(`${URL_}/storage/v1/object/listing-photos/${path}`, {
+    method: 'POST',
+    headers: { apikey: KEY as string, Authorization: `Bearer ${s.access_token}`, 'Content-Type': file.type || 'image/jpeg' },
+    body: file,
+  })
+  if (res.ok) return {}
+  let msg = 'Photo upload failed.'
+  try { const j = await res.json(); msg = j.message || j.error || msg } catch {}
+  return { error: msg }
 }

@@ -22,9 +22,11 @@ const SECTION: Record<Listing['type'], ['/vehicles' | '/parts' | '/auctions', st
 
 function ListingPage() {
   const { id } = Route.useParams()
-  const { listings, rig, openThread } = useStore()
+  const { listings, listingsReady, rig, openThread, toast } = useStore()
+  const [shot, setShot] = useState(0)
   const navigate = useNavigate()
   const l = listings.find((x) => x.id === id)
+  if (!l && !listingsReady) return <div className="container-x pb-24 pt-[120px] text-mute">Loading…</div>
   if (!l) return (
     <>
       <PageHeader title="Listing not found" sub="It may have sold, or the link took a wrong turn." />
@@ -48,9 +50,19 @@ function ListingPage() {
       <div className="mt-6 grid gap-10 lg:grid-cols-[1.25fr_1fr] lg:gap-14">
         <div>
           <div className="relative">
-            <ListingPhoto l={l} w={1200} h={900} eager className="aspect-[4/3] rounded-3xl" />
+            <ListingPhoto l={{ ...l, image: l.images?.[shot] ?? l.image }} w={1200} h={900} eager className="aspect-[4/3] rounded-3xl" />
             <span className="eyebrow absolute left-4 top-4 rounded-full bg-black/55 px-3 py-1.5 text-[10px] text-cream backdrop-blur">{typeLabel(l)}</span>
           </div>
+          {l.images && l.images.length > 1 && (
+            <div className="mt-3 flex gap-2 overflow-x-auto">
+              {l.images.map((src, i) => (
+                <button key={src} onClick={() => setShot(i)} aria-label={`Photo ${i + 1}`}
+                  className={cx('size-16 shrink-0 overflow-hidden rounded-lg border-2', i === shot ? 'border-rust' : 'border-transparent')}>
+                  <img src={src} alt="" className="size-full object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
           <div className="panel mt-6 p-6">
             <h2 className="text-lg font-semibold">Description</h2>
             <p className="mt-2 text-[15.5px] leading-relaxed text-ink/85">{description}</p>
@@ -86,7 +98,7 @@ function ListingPage() {
 
           <button
             className="btn btn-outline btn-block mt-3"
-            onClick={() => navigate({ to: '/messages', search: { t: openThread(seller.name, l.title) } })}
+            onClick={() => (l.real ? toast('Messaging real sellers is coming next.') : navigate({ to: '/messages', search: { t: openThread(seller.name, l.title) } }))}
           >
             <MessageSquare className="size-4" /> Message seller
           </button>
@@ -167,8 +179,8 @@ function BuyBox({ l }: { l: Listing }) {
   return (
     <>
       <div className="mt-6 grid gap-3">
-        <button className="btn btn-primary btn-block h-12" onClick={() => setOpen('buy')}>Buy now</button>
-        <button className="btn btn-dark btn-block" onClick={() => setOpen('offer')}>Make an offer</button>
+        <button className="btn btn-primary btn-block h-12" onClick={() => (l.real ? toast('Checkout is coming soon.') : setOpen('buy'))}>Buy now</button>
+        <button className="btn btn-dark btn-block" onClick={() => (l.real ? toast('Offers are coming soon.') : setOpen('offer'))}>Make an offer</button>
       </div>
       <Dialog open={open === 'buy'} onClose={() => setOpen(null)} title="Checkout">
         <p className="-mt-2 text-mute">{l.title}</p>

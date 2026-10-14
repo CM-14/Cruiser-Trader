@@ -1,9 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   LISTINGS, SELLERS, SOFT_CLOSE_MS, THREADS, WANTED,
-  type Listing, type Thread, type WantedPost,
+  type Listing, type Seller, type Thread, type WantedPost,
 } from '@/data/fixtures'
 import type { Rig } from './format'
+import { loadPublicListings } from './listings'
 import { auth, configured, fetchProfile, patchProfile, type AuthUser } from './supabase'
 
 /**
@@ -45,7 +46,11 @@ export interface AuthResult {
 }
 
 interface Store {
+  /** Real listings from the database first, then the built-in samples. */
   listings: LiveListing[]
+  /** False until the first load of real listings has finished. */
+  listingsReady: boolean
+  refreshListings: () => Promise<void>
   wanted: WantedPost[]
   threads: Thread[]
   rig: Rig | null
@@ -82,6 +87,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const t = Date.now()
     return LISTINGS.map((l) => ({ ...l, bids: l.bids ? [...l.bids] : undefined, endsAt: l.endsIn ? t + l.endsIn : undefined }))
   })
+  const [real, setReal] = useState<LiveListing[]>([])
+  const [listingsReady, setListingsReady] = useState(false)
   const [wanted, setWanted] = useState(WANTED)
   const [threads, setThreads] = useState<Thread[]>(() => THREADS.map((t) => ({ ...t, messages: [...t.messages] })))
   const [rig, setRig] = useState<Rig | null>(null)
@@ -169,6 +176,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return {}
   }, [userId])
 
+  const refreshListings = useCallback(async () => {
+    if (!configured()) return
+    const r = await loadPublicListings()
+    r.sellers.forEach((s) => realSellers.set(s.id, s))
+    setReal(r.listings)
+  }, [])
+
+  useEffect(() => {
+    if (!configured()) {
+      setListingsReady(true)
+      return
+    }
+    refreshListings().finally(() => setListingsReady(true))
+  }, [refreshListings])
+
+  const allListings = useMemo(() => [...real, ...listings], [real, listings])
+
   const listingsRef = useRef(listings)
   listingsRef.current = listings
 
@@ -207,9 +231,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo<Store>(() => ({
-    listings, wanted, threads, rig, user, profile, authReady, verified: !!user, signUp, signIn, signOut, updateProfile,
+    listings: allListings, listingsReady, refreshListings, wanted, threads, rig, user, profile, authReady, verified: !!user, signUp, signIn, signOut, updateProfile,
     saveRig, addListing, placeBid, setEnd, addWanted, openThread, sendMessage, toast, verifyOpen, setVerifyOpen,
-  }), [listings, wanted, threads, rig, user, profile, authReady, signUp, signIn, signOut, updateProfile,
+  }), [allListings, listingsReady, refreshListings, wanted, threads, rig, user, profile, authReady, signUp, signIn, signOut, updateProfile,
     saveRig, addListing, placeBid, setEnd, addWanted, openThread, sendMessage, toast, verifyOpen])
 
   return (
@@ -236,7 +260,8 @@ export function useStore() {
   return s
 }
 
-export const sellerById = (id: string) => SELLERS.find((s) => s.id === id) ?? SELLERS[SELLERS.length - 1]
+const realSellers = new Map<string, Seller>()
+export const sellerById = (id: string) => realSellers.get(id) ?? SELLERS.find((s) => s.id === id) ?? SELLERS[SELLERS.length - 1]
 
 /** Ticking clock for countdowns. Returns null during SSR so markup hydrates cleanly. */
 export function useNow(intervalMs = 1000) {

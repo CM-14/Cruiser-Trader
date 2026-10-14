@@ -59,7 +59,7 @@ export function countdown(end: number, now: number) {
 /** Image URL routed through Netlify Image CDN. Uploaded data URLs pass straight through. */
 export function img(key: string | undefined, w: number, h?: number) {
   if (!key) return undefined
-  if (key.startsWith('data:') || key.startsWith('blob:')) return key
+  if (key.startsWith('data:') || key.startsWith('blob:') || key.startsWith('http')) return key
   const src = key.startsWith('/') ? key : `/img/${key}.jpg`
   return `/.netlify/images?url=${encodeURIComponent(src)}&w=${w}${h ? `&h=${h}&fit=cover` : ''}&fm=webp&q=78`
 }

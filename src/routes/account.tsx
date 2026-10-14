@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { Link, createFileRoute } from '@tanstack/react-router'
 import { useEffect, useState, type FormEvent } from 'react'
 import { BadgeCheck, Check, Circle } from 'lucide-react'
 import { cx } from '@/lib/format'
@@ -97,6 +97,7 @@ function AccountPage() {
           {error && <p role="alert" className="text-sm font-medium text-rust">{error}</p>}
           <div className="flex flex-wrap gap-3 pt-1">
             <button className="btn btn-primary" disabled={saving || !profile}>{saving ? 'Saving…' : 'Save profile'}</button>
+            <Link to="/my-listings" className="btn btn-outline">My listings</Link>
             <button type="button" className="btn btn-outline" onClick={() => void signOut()}>Sign out</button>
           </div>
         </form>

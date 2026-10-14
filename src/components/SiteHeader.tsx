@@ -132,7 +132,7 @@ export function SiteHeader() {
                   </Link>
                 ))}
               </div>
-              <MenuColumn title="Trust" links={[['Get verified', '/verified'], ['Seller help', '/help']]} />
+              <MenuColumn title="Trust" links={[['My listings', '/my-listings'], ['Get verified', '/verified'], ['Seller help', '/help']]} />
               <p className="max-w-xs self-center text-sm text-mute">Fees are built into the buyer's all-in price, so you keep exactly what you ask.</p>
             </>}
           </div>
